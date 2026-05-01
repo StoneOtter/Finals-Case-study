@@ -1,31 +1,129 @@
-install.packages("utf8")
-library(readxl)
+# ================================
+# 1. Install & Load Libraries
+# ================================
+# install.packages("ggplot2")
+# install.packages("car")
+# install.packages("randomForest")
+
 library(ggplot2)
+library(car)
+library(randomForest)
 
-# Load dataset
-data <- read_excel("C:/Users/joeyg/Documents/School/2cd yr Standing/DM 1/Research/Final - Groupings/Dataset/Data gathered.xlsx")
+# ================================
+# 2. Load Dataset
+# ================================
+data <- read.csv("C:/Users/jpdev/Desktop/DM1-final-case-study/Finals-Case-study/filtered.csv")
 
-# View dataset
+# ================================
+# 3. Inspect Data
+# ================================
 head(data)
-
-# Check structure
 str(data)
 
-# Linear Regression
-model <- lm(`Weight (kg)` ~ `Calories Burned`, data = data)
+# ================================
+# 4. Clean Column Names
+# ================================
+names(data) <- make.names(names(data))
 
-# Show regression results
-summary(model)
+# ================================
+# 5. Fix Data Types
+# ================================
+data$Gender <- as.factor(data$Gender)
 
-# Pearson Correlation
-cor.test(data$`Calories Burned`, data$`Weight (kg)`)
+# ================================
+# 6. Build Models
+# ================================
 
-# Plot graph
-ggplot(data, aes(x = `Calories Burned`, y = `Weight (kg)`)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE) +
-  labs(
-    title = "Relationship between Calories Burned and Body Weight",
-    x = "Calories Burned",
-    y = "Body Weight (kg)"
-  )
+# (1) Simple Linear Model
+model_simple <- lm(Weight..kg. ~ Height..m. + Age, data = data)
+
+# (2) Improved Linear Model
+model_improved <- lm(Weight..kg. ~ Height..m. + Age + Gender, data = data)
+
+# (3) Polynomial Model (nonlinear)
+model_poly <- lm(Weight..kg. ~ poly(Height..m., 2) + poly(Age, 2) + Gender, data = data)
+
+# (4) Log-Transformed Model
+model_log <- lm(log(Weight..kg.) ~ Height..m. + I(Height..m.^2) + Age + Gender, data = data)
+
+# (5) Random Forest Model
+rf_model <- randomForest(Weight..kg. ~ ., data = data, ntree = 200)
+
+# ================================
+# 7. Model Summaries
+# ================================
+summary(model_simple)
+summary(model_improved)
+summary(model_poly)
+summary(model_log)
+
+# ================================
+# 8. Multicollinearity Check
+# ================================
+vif(model_improved)
+
+# ================================
+# 9. Predictions
+# ================================
+data$pred_simple   <- predict(model_simple, data)
+data$pred_improved <- predict(model_improved, data)
+data$pred_poly     <- predict(model_poly, data)
+
+# Log model (back-transform)
+data$pred_log <- exp(predict(model_log, data))
+
+# Random Forest predictions
+data$pred_rf <- predict(rf_model, data)
+
+# ================================
+# 10. RMSE Function
+# ================================
+rmse <- function(actual, predicted) {
+  sqrt(mean((actual - predicted)^2))
+}
+
+# ================================
+# 11. Compare Model Performance
+# ================================
+rmse_simple   <- rmse(data$Weight..kg., data$pred_simple)
+rmse_improved <- rmse(data$Weight..kg., data$pred_improved)
+rmse_poly     <- rmse(data$Weight..kg., data$pred_poly)
+rmse_log      <- rmse(data$Weight..kg., data$pred_log)
+rmse_rf       <- rmse(data$Weight..kg., data$pred_rf)
+
+cat("RMSE Results:\n")
+cat("Simple Model   :", rmse_simple, "\n")
+cat("Improved Model :", rmse_improved, "\n")
+cat("Polynomial     :", rmse_poly, "\n")
+cat("Log Model      :", rmse_log, "\n")
+cat("Random Forest  :", rmse_rf, "\n")
+
+# ================================
+# 12. Choose Best Model
+# ================================
+# (Typically Random Forest or Polynomial)
+data$final_pred <- data$pred_rf
+
+# ================================
+# 13. Actual vs Predicted Plot
+# ================================
+ggplot(data, aes(x = Weight..kg., y = final_pred, color = Gender)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1,
+              linetype = "dashed", color = "red") +
+  labs(title = "Actual vs Predicted Weight (Best Model)",
+       x = "Actual Weight (kg)",
+       y = "Predicted Weight (kg)") +
+  theme_minimal()
+
+# ================================
+# 14. Residual Diagnostics (Polynomial Model)
+# ================================
+par(mfrow = c(2, 2))
+plot(model_poly)
+
+# ================================
+# 15. Residual Diagnostics (Log Model)
+# ================================
+par(mfrow = c(2, 2))
+plot(model_log)
